@@ -34,17 +34,31 @@ For reproducibility, this repository provides the following instruments to recon
 * Python 3.6+
 * Pytorch (GPU preferred)
 * [transformers](https://github.com/huggingface/transformers) package
+* [dotenv](https://pypi.org/project/python-dotenv/)
 * [tqdm](https://tqdm.github.io/)
+* (optional) [apex](https://www.github.com/nvidia/apex) for fp16 training
 It is highly recommended that the `pytorch` and `transformers` packages are installed under a virtual environment.
 
 After cloning this repository, follow the directions below to set up the training environment.
 
 ### Instructions: ###
-1. Go to the `.env` file and set the `save_path` to our local repository to store model checkpoints. Point `data_path` to the `/data` folder of the cloned repository. 
+1. Go to the `.env` file and set the `save_path` to our local repository to store model checkpoints. Point `data_path` to the `/data` folder of the cloned repository. The `.env` file also contains the hyperparameter configurations:
+
+```
+* epochs = 3
+* learn_rate = 5e-5
+* gradient_accumulation_steps = 8
+* batch_size = 1
+* weight_decay = 0.0
+* logging_steps = 10
+* save_steps = 250
+```
+
+Replace `epochs`, `batch_size`, `gradient_accumulation_steps` and `learn_rate` with the desired hyperparameters of choice. **If you have less than 12Gb GPU memory, consider using `batch size = 1`, with `gradient accumulation steps` between [4-8]**.
 
 2. Run `preprocess_dataset.py` to preprocess `/data/train_both_original_no_cands.txt` and `/data/valid_both_original_no_cands.txt`. The original `.txt` files are obtained from the [ConvAI2 Challenge](https://github.com/DeepPavlov/convai), which may no longer be available since the ConvAI3 challenge has taken place. The ConvAI2 challenge data uses the [Persona-Chat](https://arxiv.org/pdf/1801.07243) dataset which is what is provided under the `/data` folder. 
 
-3. Run `train.py --epochs <num epochs> --batch_size <bs> --learn_rate <lr> --grad_accum_steps <accumulation_steps>` to train the PersonaGPT model. Replace `<num epochs>`, `<bs>`, `<accumulation_steps>` and `<lr>` with the desired hyperparameters of choice. **If you have less than 12Gb GPU memory, consider using `batch size = 1`, with `4 < gradient accumulation steps <8`**.	Results, including training logs (i.e., loss per k iters) will be saved under `save_path/checkpoint`.
+3. Run `train.py` to train the PersonaGPT model. Results (i.e., loss per `<logging_steps>`) will be saved under `save_path/samples/`. Model checkpoints are saved under `save_path/checkpoint/model`.
 
 --- 
 ## References ##
