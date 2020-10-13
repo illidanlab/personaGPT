@@ -42,5 +42,6 @@ def interact(length=8, top_k=10, top_p=.92, max_length=1000, use_persona=True):
         # pretty print last ouput tokens from bot
         print("Bot: {}".format(tokenizer.decode(chat_history_ids[:, bot_input_ids.shape[-1]:][0], skip_special_tokens=True)))
 
+
 if __name__=="__main__":
     interact(use_persona=True)

@@ -45,13 +45,13 @@ After cloning this repository, follow the directions below to set up the trainin
 1. Go to the `.env` file and set the `save_path` to our local repository to store model checkpoints. Point `data_path` to the `/data` folder of the cloned repository. The `.env` file also contains the hyperparameter configurations:
 
 ```
-* epochs = 3
-* learn_rate = 5e-5
-* gradient_accumulation_steps = 8
-* batch_size = 1
-* weight_decay = 0.0
-* logging_steps = 10
-* save_steps = 250
+epochs = 3
+learn_rate = 5e-5
+gradient_accumulation_steps = 8
+batch_size = 1
+weight_decay = 0.0
+logging_steps = 10
+save_steps = 250
 ```
 
 Replace `epochs`, `batch_size`, `gradient_accumulation_steps` and `learn_rate` with the desired hyperparameters of choice. **If you have less than 12Gb GPU memory, consider using `batch size = 1`, with `gradient accumulation steps` between [4-8]**.
