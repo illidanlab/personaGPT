@@ -17,7 +17,7 @@ The goal of PersonaGPT is to create a create an open-source database that:
 Most conversational datasets capture near-perfect human-human dialog as a source of supervision. 
 However, human-chatbot conversations can exhibit failure modes that are rare in normal human-human interactions: e.g., lack of consistent personality, 
 
-In an ongoing work, [we](https://illidanlab.github.io) are also examining cases where conversational agnets do indeed successfully "fool" human evaluators. 
+In an ongoing work, [we](https://illidanlab.github.io) are also examining cases where conversational agents do indeed successfully "fool" human evaluators. 
 In the current era of ["deep fakes"](https://www.forbes.com/sites/robtoews/2020/05/25/deepfakes-are-going-to-wreak-havoc-on-society-we-are-not-prepared/#7de8ecb57494), we are trying to identify more robust *linguistic* markers (which add an additional level of difficulty) and authentication algorithms to distinguish fake conversational agents from real ones. 
 
 Currently, [we](https://illidanlab.github.io) are collecting human-chatbot conversational data to create an active-learning style approach to improve open-domain conversational agents and to construct authentication algorithms. 
