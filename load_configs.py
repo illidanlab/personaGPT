@@ -38,8 +38,8 @@ create_dir(save_path)
 class Configs():
     def __init__(self):
         # saving and loading paths
-        self.raw_data_path = os.path.join(save_path, 'train_convai_gpt')
-        self.val_data_path = os.path.join(save_path, 'valid_convai_gpt')
+        self.raw_data_path = os.path.join(save_path, 'train_data')
+        self.val_data_path = os.path.join(save_path, 'valid_data')
         self.output_dir = os.path.join(save_path, 'checkpoint/model/')
         self.model_name_or_path = os.path.join(save_path,'checkpoint/model/')
         self.plot_path = os.path.join(save_path,'samples/')
@@ -68,6 +68,9 @@ class Configs():
         self.seed = 42
         self.fp16 = False
         self.fp16_opt_level = 'O1'
+        # sampling params
+        self.top_k = 20
+        self.top_p = .92
         
 opts = Configs()
 
@@ -111,10 +114,13 @@ def load_from_pretrained():
             tokenizer.save_pretrained(tokenizer_path)
             model.save_pretrained(model_path)
         stats = None
-    tokenizer.add_special_tokens({'additional_special_tokens': ['<|start|>', '<|p1|>', '<|p2|>']})
+    tokenizer.add_special_tokens({'additional_special_tokens': ['<|start|>', '<|p1|>', '<|p2|>', '<|act|>']})
     model.resize_token_embeddings(len(tokenizer))
     return model.to(device), tokenizer, stats
 
 
 model, tokenizer, stats = load_from_pretrained()
 p1_tok, p2_tok, start_tok = tokenizer.encode('<|p1|>')[0], tokenizer.encode('<|p2|>')[0], tokenizer.encode('<|start|>')[0]
+
+# new, action token
+act_tok = tokenizer.encode('<|act|>')[0]

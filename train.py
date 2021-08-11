@@ -5,7 +5,7 @@ Created on Mon Oct 12 14:10:21 2020
 
 @author: af1tang
 """
-import torch, os, pickle
+import torch, os, pickle, time
 import numpy as np
 from torch.utils.data import DataLoader, Dataset, RandomSampler, SequentialSampler
 from transformers import AdamW, get_linear_schedule_with_warmup
@@ -24,29 +24,29 @@ def checkpoint(model, tokenizer, optimizer, scheduler, stats):
     with open(os.path.join(opts.output_dir, 'stats.pkl'), 'wb') as f: pickle.dump(stats,f)
     
 ## Training Pipeline ##
-def train_loop(data, model, tokenizer, stats=None): 
-    inps = [[start_tok]  for i in range(len(data))]#[data[i]['inp'] for i in range(len(data))]
-    convos = [data[i]['inp'] + data[i]['labels'] for i in range(len(data))]
+def fit_on_batch(batch):
+    xx,yy = batch
+    try:
+        xx, yy = torch.stack(xx, -1).to(device), torch.stack(yy, -1).to(device)
+    except:
+        xx, yy = to_var(xx), to_var(yy)
+    ## forward on new data batch
+    _, past = model(xx); del _
+    outp = model(yy, past=past, labels=yy)
+    
+    # backward
+    loss = outp[0]; del outp
+    if opts.gradient_accumulation_steps > 1:
+        loss = loss / opts.gradient_accumulation_steps
+    loss.backward()
+    return loss
 
-    P1 = [ [p1_tok] + tokenizer.encode("person 1: ") + flatten(data[i]['p_src']) + [tokenizer.sep_token_id] for i in range(len(data))]
-    P2 = [  [p2_tok] + tokenizer.encode("person 2: ") + flatten(data[i]['p_trg']) + [tokenizer.sep_token_id] for i in range(len(data))]
-    
-    databunch = list(zip(inps,convos, P1, P2))
-    
-    train_dataset = ConvDataset(databunch)
-    train_sampler = RandomSampler(train_dataset)
-    train_dataloader = DataLoader(train_dataset, sampler=train_sampler, batch_size=opts.batch_size, 
-                                  collate_fn=collate_tuple, drop_last=True)
-    del inps, convos, P1, P2, databunch
-    
-    # calculate total steps
-    if opts.max_steps > 0:
-        t_total = opts.max_steps
-        opts.num_train_epochs = opts.max_steps // (len(train_dataloader) // opts.gradient_accumulation_steps) + 1
-    else:
-        t_total = len(train_dataloader) // opts.gradient_accumulation_steps * opts.num_train_epochs
+def train_loop(data, stats=None): 
+    # fine tuning
+    dataloader = DataLoader(data, batch_size=1, shuffle=True); del data
+    ## optimizer and scheduler ##
+    t_total = len(dataloader) // opts.gradient_accumulation_steps * opts.num_train_epochs
 
-    ## set up optimizers and schedulers ##
     no_decay = ["bias", "LayerNorm.weight"]
     optimizer_grouped_parameters = [ {"params": [p for n, p in model.named_parameters() if not any(nd in n for nd in no_decay)],
                                          "weight_decay": opts.weight_decay},
@@ -61,78 +61,37 @@ def train_loop(data, model, tokenizer, stats=None):
         # load optimizer and scheduler states
         optimizer.load_state_dict(torch.load(os.path.join(opts.model_name_or_path, "optimizer.pt")))
         scheduler.load_state_dict(torch.load(os.path.join(opts.model_name_or_path, "scheduler.pt")))
-    if opts.fp16:
-        try:
-            from apex import amp
-        except ImportError:
-            raise ImportError("Please install apex from https://www.github.com/nvidia/apex to use fp16 training.")
-        model, optimizer = amp.initialize(model, optimizer, opt_level=opts.fp16_opt_level)
+    # track stats
     if stats is not None:
-        global_step = len(stats)
-        epochs_trained = global_step // (len(train_dataloader) // opts.gradient_accumulation_steps)
-        steps_trained_in_current_epoch = global_step % (len(train_dataloader) // opts.gradient_accumulation_steps)
+        global_step = max(stats.keys())
+        epochs_trained = global_step // (len(dataloader) // opts.gradient_accumulation_steps)
+        steps_trained_in_current_epoch = global_step % (len(dataloader) // opts.gradient_accumulation_steps)
         print("Resuming Training ... ")
     else:
-        print("New Training ... ")
         stats = {}
         global_step, epochs_trained, steps_trained_in_current_epoch = 0,0,0
-    ## start training ##
     tr_loss, logging_loss = 0.0, 0.0
-    model.zero_grad()
+    # very important: set model to TRAINING mode
+    model.zero_grad(); model.train()
     print("Re-sizing model ... ")
     model.resize_token_embeddings(len(tokenizer))
+    start_time = time.time()
     for epoch in range(epochs_trained, opts.num_train_epochs):
-        data_iter = iter(train_dataloader)
-        for step in range(len(train_dataloader)):
-            # skip previous steps if re-training
+        data_iter= iter(dataloader)
+        for step in range(len(dataloader)):
             if steps_trained_in_current_epoch > 0:
                 steps_trained_in_current_epoch -= 1
+                batch = data_iter.next()
                 continue
-            # process batch
+            ### step ###
             batch = data_iter.next()
-            if opts.use_token_ids:
-                inp, labels, p1, p2, m_x, m_y, m_p1, m_p2, px, py, pp1, pp2, tx, ty, tp1, tp2 = map(to_var,batch ); del batch
-            else:
-                inp, labels, p1, p2, m_x, m_y, m_p1, m_p2, px, py, pp1, pp2 = map(to_var,batch ); del batch
-                tx, ty, tp1, tp2 = None,None,None,None
-            ctx = torch.cat([p1,p2, inp], dim=-1); del p1,p2,inp # context = p1 | p2 | x
-            p_ctx = torch.cat([pp1,pp2, px], dim=-1); del pp1,pp2,px # positional id's of context
-            m_ctx = torch.cat([m_p1, m_p2, m_x], dim=-1); del m_p1,m_p2, m_x # attention masks of context
-            m_full = torch.cat([m_ctx, m_y], dim=-1)    # concat masks into 1 attention mask
-            if tx is not None:
-                t_ctx = torch.cat([tp1, tp2, tx], dim=-1); del tp1, tp2, tx # token id's of context
-            # forward pass #
-            model.train()
-            # forward through history (obtain "past" contextual states)
-            # (k,v) x bs x heads x t x dim
-            if opts.use_token_ids:
-                _, past = model(ctx, attention_mask=m_ctx, position_ids = p_ctx, token_type_ids = t_ctx); del _, m_ctx
-                outp = model(labels, attention_mask=m_full, position_ids = py, token_type_ids = ty,
-                             past=past, labels=labels)
-            else:
-                _, past = model(ctx, attention_mask=m_ctx, position_ids = p_ctx); del _, m_ctx
-                outp = model(labels, attention_mask=m_full, position_ids = py, 
-                             past=past, labels=labels)
-            # forward through prediction
-
-            # (loss), lm_logits, presents, (all hidden_states), (attentions)
-            loss = outp[0]; del outp
-            if opts.gradient_accumulation_steps > 1:
-                loss = loss / opts.gradient_accumulation_steps
-            # backward
-            if opts.fp16:
-                with amp.scale_loss(loss, optimizer) as scaled_loss:
-                    scaled_loss.backward()
-            else:
-                loss.backward()
+            loss = fit_on_batch(batch); del batch
+            # logging (new data only)
             tr_loss += loss.item()
             
             # gradient accumulation
             if (step+1) % opts.gradient_accumulation_steps == 0:
-                if opts.fp16:
-                    torch.nn.utils.clip_grad_norm_(amp.master_params(optimizer), opts.max_grad_norm)
-                else:
-                    torch.nn.utils.clip_grad_norm_(model.parameters(), opts.max_grad_norm)
+                torch.nn.utils.clip_grad_norm_(model.parameters(), opts.max_grad_norm)
                 optimizer.step()
                 scheduler.step()  # Update learning rate schedule
                 model.zero_grad()
@@ -141,11 +100,14 @@ def train_loop(data, model, tokenizer, stats=None):
                 # reporting 
                 if global_step % opts.logging_steps ==0:
                     stats[global_step] = {'loss': (tr_loss - logging_loss) / opts.logging_steps, 
-                                          'lr': scheduler.get_last_lr()[0]}
+                                          'lr': scheduler.get_last_lr()[-1]}
                     logging_loss = tr_loss
                     
-                    print('Epoch: %d | Iter: %d | loss: %.3f | lr: %s ' %( 
-                    epoch, global_step, stats[global_step]['loss'], str(stats[global_step]['lr'])) )
+                    elapsed_time = time.strftime("%M:%S", time.gmtime(time.time() - start_time))
+                    print('Epoch: %d | Iter: [%d/%d] | loss: %.3f | lr: %s | time: %s' %( 
+                    epoch, global_step, t_total, stats[global_step]['loss'],                             
+                            str(stats[global_step]['lr']), elapsed_time))
+                    start_time = time.time()
                     
                 if global_step % opts.save_steps==0:
                     print("Saving stuff ... ")
@@ -153,67 +115,27 @@ def train_loop(data, model, tokenizer, stats=None):
                     plot_losses(stats, title='loss' )
                     plot_losses(stats, title='lr')
                     print("Done.")
+                    
     return stats
 
-def evaluate_loop(data, model, tokenizer, mode='PM-GPT'):
-    # prepare validation dataloader
-    if mode == 'PM-GPT':
-        inps = [[start_tok]  for i in range(len(data))] #[data[i]['inp'] for i in range(len(data))]
-        convos = [data[i]['inp'] + data[i]['labels'] for i in range(len(data))]
-        P1 = [ [p1_tok] + tokenizer.encode("person 1: ") + flatten(data[i]['p_src']) + [tokenizer.sep_token_id] for i in range(len(data))]
-        P2 = [  [p2_tok] + tokenizer.encode("person 2: ") + flatten(data[i]['p_trg']) + [tokenizer.sep_token_id] for i in range(len(data))]
-    else:
-        inps = [data[i]['inp'] for i in range(len(data))]
-        convos = [data[i]['labels'] for i in range(len(data))]
-        P1 = [ tokenizer.encode("person 1: ") + flatten(data[i]['p_src']) for i in range(len(data))]
-        P2 = [  tokenizer.encode("person 2: ") + flatten(data[i]['p_trg']) for i in range(len(data))]
-    
-    databunch = list(zip(inps,convos, P1, P2))
-    
-    val_dataset = ConvDataset(databunch)
-    val_sampler = SequentialSampler(val_dataset)
-    val_dataloader = DataLoader(val_dataset, sampler=val_sampler, batch_size=opts.batch_size, 
-                                  collate_fn=collate_tuple, drop_last=True)
-    del inps, convos, P1, P2, data        
-    data_iter = iter(val_dataloader)
-
-    # evaluation loop
-    print("Validating ... ")
+def evaluate_loop(data):
+    dataloader = DataLoader(data, batch_size=1, shuffle=True); del data
+    data_iter = iter(dataloader)
     with torch.no_grad():
         eval_stats, total_steps, val_loss, val_f1_score = {}, 0, 0.0, 0.0
-        model.resize_token_embeddings(len(tokenizer))
         model.eval()
-        for step in range(len(val_dataloader)):
-            # process batch
+        for i in range(len(dataloader)):
             batch = data_iter.next()
-            if opts.use_token_ids:
-                inp, labels, p1, p2, m_x, m_y, m_p1, m_p2, px, py, pp1, pp2, tx, ty, tp1, tp2 = map(to_var,batch ); del batch
-            else:
-                inp, labels, p1, p2, m_x, m_y, m_p1, m_p2, px, py, pp1, pp2 = map(to_var,batch ); del batch
-                tx, ty, tp1, tp2 = None,None,None,None
-            ctx = torch.cat([p1,p2, inp], dim=-1) # context = p1 | p2 | x
-            p_ctx = torch.cat([pp1,pp2, px], dim=-1) # positional id's of context
-            m_ctx = torch.cat([m_p1, m_p2, m_x], dim=-1) # attention masks of context
-            m_full = torch.cat([m_ctx, m_y], dim=-1)    # concat masks into 1 attention mask
-            if tx is not None:
-                t_ctx = torch.cat([tp1, tp2, tx], dim=-1) # token id's of context
-            # forward pass #
-            if opts.use_token_ids:
-                _, past = model(ctx, attention_mask=m_ctx, position_ids = p_ctx, token_type_ids = t_ctx); del _, m_ctx
-                outp = model(labels, attention_mask=m_full, position_ids = py, token_type_ids = ty,
-                             past=past, labels=labels)
-            elif mode != 'PM-GPT':
-                _, past = model(inp)
-                outp = model(labels, past=past, labels=labels)
-            else:
-                _, past = model(ctx, attention_mask=m_ctx, position_ids = p_ctx); del _, m_ctx
-                outp = model(labels, attention_mask=m_full, position_ids = py, 
-                             past=past, labels=labels)
-            # forward through prediction
+            xx,yy = batch
+            try:
+                xx, yy = torch.stack(xx, -1).to(device), torch.stack(yy, -1).to(device)
+            except:
+                xx, yy = to_var(xx), to_var(yy)
+            ## forward on new data batch
+            _, past = model(xx); del _
+            outp = model(yy, past=past, labels=yy)
             loss = outp[0]
-            # f1 score calc
-            #ytrue =  to_data(labels[..., 1:].contiguous().view(-1))
-            ytrue=np.array( filter_turn_indices(to_data(labels[...,1:].contiguous().view(-1)) ) )
+            ytrue=np.array( filter_turn_indices(to_data(yy[...,1:].contiguous().view(-1)) ) )
             #ypred = to_data(outp[1][..., :,:].contiguous().topk(1)[1].view(-1))
             ypred=np.array( filter_turn_indices(to_data( outp[1][..., :-1, :].contiguous().topk(1)[1].view(-1)) ) ) 
             min_len = min(len(ypred), len(ytrue))
@@ -234,9 +156,9 @@ def evaluate_loop(data, model, tokenizer, mode='PM-GPT'):
     return eval_stats
 
 if __name__ == '__main__':        
-    with open(opts.raw_data_path, 'rb') as f: data = pickle.load(f)
-    stats = train_loop(data, model, tokenizer, stats)
+    with open(opts.raw_data_path, 'rb') as f: train_data = pickle.load(f)
+    #stats = train_loop(train_data, stats)
 
-    with open(opts.val_data_path, 'rb') as f: data = pickle.load(f)
-    eval_stats = evaluate_loop(data, model, tokenizer)
+    with open(opts.val_data_path, 'rb') as f: eval_data = pickle.load(f)
+    #eval_stats = evaluate_loop(eval_data)
        

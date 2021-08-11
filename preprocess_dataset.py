@@ -88,11 +88,39 @@ def preprocess_convai(filename):
             pbar.update(1)
         
     return data
+
+def convert_to_XY(old_data):
+    data = []
+    print("building training set...")
+    for i in range(len(old_data)):
+        p1 = [tokenizer.decode(p) for p in old_data[i]['p_src']]
+        p2 = [tokenizer.decode(p) for p in old_data[i]['p_trg']]
+
+        convo = old_data[i]['inp'] + old_data[i]['labels']
+        dialog_hx = list(split_by_index(convo,tokenizer.eos_token_id))
+        #if len(dialog_hx) < 30:
+        dialog_hx = dialog_hx[:20] # limit by max len of convo
+        p1_ctx = tokenizer.encode(''.join(['<|p1|>'] + p1 + ['<|sep|>'] + ['<|start|>']))
+        p2_ctx = tokenizer.encode(''.join(['<|p2|>'] + p2 + ['<|sep|>'] + ['<|start|>']))
+        for t in range(len(dialog_hx)):
+            x = dialog_hx[:t]
+            y = dialog_hx[t]
+            if t == 0:
+                x = p1_ctx[:-1] 
+                y = [p1_ctx[-1]] + y
+            elif t %2 ==0:
+                x = p1_ctx + flatten(x)
+            else:
+                x = p2_ctx + flatten(x)
+            data.append((x,y))
+    return data
     
     
 if __name__ == '__main__':        
     train_data = preprocess_convai(os.path.join(data_path, 'train_both_original_no_cands.txt'))
+    train_data = convert_to_XY(train_data)
     val_data = preprocess_convai(os.path.join(data_path, 'valid_both_original_no_cands.txt'))
+    val_data = convert_to_XY(val_data)
     with open(opts.raw_data_path, 'wb') as f: pickle.dump(train_data, f)
     with open(opts.val_data_path, 'wb') as f: pickle.dump(val_data, f)
     
