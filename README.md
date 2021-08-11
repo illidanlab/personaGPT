@@ -96,23 +96,25 @@ It is highly recommended that the `pytorch` and `transformers` packages are inst
 After cloning this repository, follow the directions below to set up the training environment.
 
 ### Instructions: ###
-1. Go to the `.env` file and set the `save_path` to your desired local repository to store model, scheudler and optimizer checkpoints. Point `data_path` to the `~/data` folder of the cloned repository. The `.env` file also contains the hyperparameter configurations:
+1. Go to the `.env` file and set the `save_path` to your desired local repository to store model, scheduler and optimizer checkpoints. Point `data_path` to the `~/data` folder of the cloned repository. The `.env` file also contains the hyperparameter configurations:
 
 ```
 epochs = 3
 learn_rate = 5e-5
-gradient_accumulation_steps = 8
+gradient_accumulation_steps = 64
 batch_size = 1
 weight_decay = 0.0
 logging_steps = 10
 save_steps = 250
 ```
 
-Replace `epochs`, `batch_size`, `gradient_accumulation_steps` and `learn_rate` with the desired hyperparameters of choice. **If you have less than 12Gb GPU memory, consider using `batch size = 1`, with `gradient accumulation steps` between [4-8]**.
+Replace `epochs`, `batch_size`, `gradient_accumulation_steps` and `learn_rate` with the desired hyperparameters of choice. **Please use `batch_size = 1` and change `gradient accumulation steps between`** to adjust the training batch size. This current repo version does not support parallel batching at the moment (TODO). 
 
 2. Run `preprocess_dataset.py` to preprocess `~/data/train_both_original_no_cands.txt` and `~/data/valid_both_original_no_cands.txt`. The original `.txt` files are obtained from the [ConvAI2 Challenge](https://github.com/DeepPavlov/convai), which may no longer be available since the ConvAI3 challenge has taken place. The ConvAI2 challenge data uses the [Persona-Chat](https://arxiv.org/pdf/1801.07243) dataset which is what is provided under the `/data` folder. 
 
-3. Run `train.py` to train the PersonaGPT model. Results (i.e., training loss) will be saved under `[save_path]/samples/`. Model checkpoints are saved under `[save_path]/checkpoint/model`.
+3. Run `train.py` to train the PersonaGPT model. Results (e.g., pretrain_loss, persona_loss, ctrl_loss) will be saved under `[save_path]/samples/`. Model checkpoints are saved under `[save_path]/checkpoint/model`. 
+
+Explanation: currently there are 2 training loops, `pretrain()` and `train_loop()`. `pretrain()` first trains model on the Persona-Chat dataset and saves the performance under `pretrain_stats`.  `train_loop()` then fine-tunes the model on active learning data, which includes the action codes (e.g., "talk about hobbies", "ask about pets") used for controlled response generation. **The pretrained model can be used as as stand-alone dialog model for personalized dialog generation without fine-tuning on the actively learned actions.**
 
 ---
 
