@@ -25,7 +25,7 @@ Also called [persona modeling](https://arxiv.org/abs/1902.00098), personalized d
 |---|---|
 | Human | yo whats good fam? |
 | Bot | hello, how are you doing? |
-| Human not bad what you doing today?|
+| Human | not bad what you doing today?|
 | Bot | eating a lot healthier now that i'm in my 60s |
 | Human | i'm more of a fast food guy |
 | Bot | me too but i'm very healthy so i try to avoid it |
