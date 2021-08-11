@@ -40,6 +40,7 @@ class Configs():
         # saving and loading paths
         self.raw_data_path = os.path.join(save_path, 'train_data')
         self.val_data_path = os.path.join(save_path, 'valid_data')
+        self.active_data_path = os.path.join(save_path, 'active_data')
         self.output_dir = os.path.join(save_path, 'checkpoint/model/')
         self.model_name_or_path = os.path.join(save_path,'checkpoint/model/')
         self.plot_path = os.path.join(save_path,'samples/')

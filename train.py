@@ -41,7 +41,7 @@ def fit_on_batch(batch):
     loss.backward()
     return loss
 
-def train_loop(data, stats=None): 
+def pretrain(data, stats=None): 
     # fine tuning
     dataloader = DataLoader(data, batch_size=1, shuffle=True); del data
     ## optimizer and scheduler ##
@@ -112,10 +112,117 @@ def train_loop(data, stats=None):
                 if global_step % opts.save_steps==0:
                     print("Saving stuff ... ")
                     checkpoint(model, tokenizer, optimizer, scheduler, stats)
-                    plot_losses(stats, title='loss' )
+                    plot_losses(stats, title='pretraining_loss' )
                     plot_losses(stats, title='lr')
                     print("Done.")
                     
+    return stats
+
+def train_loop(new_data, old_data, stats = None):
+    ## prep dataloaders ##
+    X, y = new_data['X'], new_data['y']
+    dataloader_new = DataLoader(list(zip(X,y)), batch_size=1, shuffle=True)
+    dataloader_old = DataLoader(old_data, batch_size=1, shuffle=True); del X, y
+    
+    ## optimizer and scheduler ##
+    # calculate total steps
+    opts.gradient_accumulation_steps, opts.num_train_epochs = 64, 1
+    t_total = len(dataloader_old) // opts.gradient_accumulation_steps * opts.num_train_epochs
+
+    ## set up optimizers and schedulers ##
+    with torch.no_grad():
+        fast_group = flatten([[p[act_tok], p[start_tok], p[p1_tok], p[p2_tok]] for n,p in model.named_parameters() if n == 'transformer.wte.weight']) #['transformer.wte.weight']
+        freeze_group = [p[:start_tok] for n,p in model.named_parameters() if n == 'transformer.wte.weight']#['transformer.wte.weight']
+        slow_group = [p for n,p in model.named_parameters() if n == 'transformer.wpe.weight']
+        normal_group = [p for n,p in model.named_parameters() if n not in ('transformer.wte.weight',
+                                                                           'transformer.wpe.weight')]
+    # different learn rates for different param groups
+    optimizer_grouped_parameters = [{"params": fast_group, 'lr': 5e-4}, 
+                                    {"params": freeze_group, 'lr': 1e-8}, 
+                                    {"params": slow_group, 'lr': 1e-6}, 
+                                    {"params": normal_group, 'lr': opts.lr}] 
+    optimizer = AdamW(optimizer_grouped_parameters, lr=opts.lr, eps=opts.eps)
+    scheduler = get_linear_schedule_with_warmup(optimizer, num_warmup_steps=opts.warmup_steps, 
+                                                num_training_steps=t_total)
+    # loading optimizer settings
+    if (opts.active_learning_path and os.path.isfile(os.path.join(opts.active_learning_path, "optimizer.pt"))
+                                and os.path.isfile(os.path.join(opts.active_learning_path, "scheduler.pt")) ):
+        # load optimizer and scheduler states
+        optimizer.load_state_dict(torch.load(os.path.join(opts.active_learning_path, "optimizer.pt")))
+        scheduler.load_state_dict(torch.load(os.path.join(opts.active_learning_path, "scheduler.pt")))
+    # track stats
+    if stats is not None:
+        global_step = max(stats.keys())
+        epochs_trained = global_step // (len(dataloader_old) // opts.gradient_accumulation_steps)
+        steps_trained_in_current_epoch = global_step % (len(dataloader_old) // opts.gradient_accumulation_steps)
+        print("Resuming Training ... ")
+    else:
+        stats = {}
+        global_step, epochs_trained, steps_trained_in_current_epoch = 0,0,0
+    tr_loss, logging_loss = 0.0, 0.0
+    tr_loss_old, logging_loss_old = 0.0, 0.0
+    model.zero_grad()
+    print("Re-sizing model ... ")
+    model.resize_token_embeddings(len(tokenizer))
+    # training mode
+    model.train()
+    data_iter_new = iter(dataloader_new)
+    data_iter_old = iter(dataloader_old)
+    for epoch in range(epochs_trained, num_train_epochs):
+        for step in range(len(dataloader_old)): 
+            if steps_trained_in_current_epoch > 0:
+                steps_trained_in_current_epoch -= 1
+                batch = data_iter_old.next()
+                continue
+            ### new data step ###
+            try:
+                batch = data_iter_new.next()
+            except:
+                X, y = new_data['X'], new_data['y']
+                dataloader_new = DataLoader(list(zip(X,y)), batch_size=1, shuffle=True); del X,y
+                data_iter_new = iter(dataloader_new)
+                batch = data_iter_new.next()
+            new_loss = fit_on_batch(batch); del batch
+            tr_loss += new_loss.item()
+            
+            ## old data step ###
+            try:
+                batch = data_iter_old.next()
+            except:
+                data_iter_old = iter(dataloader_old)
+                batch = data_iter_old.next()
+            old_loss = fit_on_batch(batch); del batch
+            tr_loss_old += old_loss.item()
+            
+            # gradient accumulation
+            if (step+1) % opts.gradient_accumulation_steps == 0:
+                torch.nn.utils.clip_grad_norm_(model.parameters(), opts.max_grad_norm)
+                optimizer.step()
+                scheduler.step()  # Update learning rate schedule
+                model.zero_grad()
+                global_step += 1
+                
+                # reporting 
+                if global_step % opts.logging_steps ==0:
+                    stats[global_step] = {'new_loss': (tr_loss - logging_loss) / opts.logging_steps, 
+                                          'old_loss': (tr_loss_old - logging_loss_old) / opts.logging_steps,
+                                          'lr': scheduler.get_last_lr()[-1]}
+                    logging_loss = tr_loss
+                    logging_loss_old = tr_loss_old
+                    
+                    print('Epoch: %d | Iter: [%d/%d] | new_loss: %.3f | old_loss: %.3f | lr: %s ' %( 
+                    epoch, step, len(dataloader_old), stats[global_step]['new_loss'], 
+                            stats[global_step]['old_loss'],
+                            str(stats[global_step]['lr'])) )
+                    
+                if global_step % opts.save_steps==0:
+                    print("Saving stuff ... ")
+                    checkpoint(model, tokenizer, optimizer, scheduler, stats)
+                    plot_losses(stats, title='personachat_loss' )
+                    plot_losses(stats, title='ctrl_loss' )
+                    plot_losses(stats, title='lr')
+                    print("Done.")
+                            
     return stats
 
 def evaluate_loop(data):
@@ -156,7 +263,10 @@ def evaluate_loop(data):
 
 if __name__ == '__main__':        
     with open(opts.raw_data_path, 'rb') as f: train_data = pickle.load(f)
-    stats = train_loop(train_data, stats)
+    pretrain_stats = pretrain(train_data, stats)
+    
+    with open(opts.active_data_path, 'rb') as f: active_data = pickle.load(f)
+    train_stats = train_loop(active_data, train_data)
 
     with open(opts.val_data_path, 'rb') as f: eval_data = pickle.load(f)
     eval_stats = evaluate_loop(eval_data)
