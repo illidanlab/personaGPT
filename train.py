@@ -136,7 +136,6 @@ def evaluate_loop(data):
             outp = model(yy, past=past, labels=yy)
             loss = outp[0]
             ytrue=np.array( filter_turn_indices(to_data(yy[...,1:].contiguous().view(-1)) ) )
-            #ypred = to_data(outp[1][..., :,:].contiguous().topk(1)[1].view(-1))
             ypred=np.array( filter_turn_indices(to_data( outp[1][..., :-1, :].contiguous().topk(1)[1].view(-1)) ) ) 
             min_len = min(len(ypred), len(ytrue))
             hits = [set(ypred[i]).intersection(set(ytrue[i])) for i in range(min_len)]#set(ytrue).intersection(set(ypred))
@@ -157,8 +156,12 @@ def evaluate_loop(data):
 
 if __name__ == '__main__':        
     with open(opts.raw_data_path, 'rb') as f: train_data = pickle.load(f)
-    #stats = train_loop(train_data, stats)
+    stats = train_loop(train_data, stats)
 
     with open(opts.val_data_path, 'rb') as f: eval_data = pickle.load(f)
-    #eval_stats = evaluate_loop(eval_data)
-       
+    eval_stats = evaluate_loop(eval_data)
+      
+    print("="*15, " Eval Score ", "="*15)
+    print("Perplexity: %.2f" %eval_stats['perplexity'])
+    print("F1 Score: %.2f" % eval_stats['f1'])
+    print("="*45)

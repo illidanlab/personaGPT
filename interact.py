@@ -24,13 +24,16 @@ def generate_next(bot_input_ids, do_sample=True, top_k=10, top_p=.92,
     return msg
 
 ## Interactive Mode w/ User ##
-def interact(choice, length=8, top_k=10, top_p=.92, max_length=1000):
+def get_personas():
     # custom personas for conversation
     personas = []
-    for i in range(3):
+    for i in range(5):
         response = input(">> Fact %d: "%(i+1))+ tokenizer.eos_token
         personas.append(response)
     personas = tokenizer.encode(''.join(['<|p2|>'] + personas + ['<|sep|>'] + ['<|start|>']))
+    return personas
+
+def interact(choice, personas, length=8, top_k=10, top_p=.92, max_length=1000):
     dialog_hx = []
 
     # chat time
@@ -72,11 +75,12 @@ def interact(choice, length=8, top_k=10, top_p=.92, max_length=1000):
             dialog_hx.append(msg)
     if choice == 2:
         display_dialog_history(dialog_hx)
+    return dialog_hx
 
 if __name__=="__main__":
     parser = argparse.ArgumentParser(description='Process some integers.')
     parser.add_argument('-M', '--mode', type=int, 
-                        dest='mode', default=2,
+                        dest='mode', default=1,
                         help='''mode (0 or 1) of interaction: 
                         (0) user gives prompts to persona model,
                         (1) user picks action codes for controlled decoding.''')
@@ -94,6 +98,7 @@ if __name__=="__main__":
                         help='nucleus sampling parameter (default 0.92)')    
 
     args = parser.parse_args()
-    interact(args.mode, length=args.turns, 
+    personas = get_personas()
+    dialog_hx = interact(args.mode, personas, length=args.turns, 
              top_k=args.top_k, top_p=args.top_p,
              max_length=args.max_length)
