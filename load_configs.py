@@ -40,7 +40,7 @@ class Configs():
         # saving and loading paths
         self.raw_data_path = os.path.join(save_path, 'train_data')
         self.val_data_path = os.path.join(save_path, 'valid_data')
-        self.active_data_path = os.path.join(save_path, 'active_data')
+        self.active_data_path = os.path.join(data_path, 'active_data')
         self.output_dir = os.path.join(save_path, 'checkpoint/model/')
         self.model_name_or_path = os.path.join(save_path,'checkpoint/model/')
         self.plot_path = os.path.join(save_path,'samples/')
@@ -85,11 +85,13 @@ def load_from_pretrained():
                                                 sep_token='<|sep|>')
         model = GPT2LMHeadModel.from_pretrained(opts.model_name_or_path)
         try:
-            with open(os.path.join(opts.output_dir, 'stats.pkl'), 'rb') as f:
-                stats = pickle.load(f)
+            with open(os.path.join(opts.output_dir, 'pretrain_stats.pkl'), 'rb') as f:
+                pretrain_stats = pickle.load(f)
+            with open(os.path.join(opts.output_dir, 'train_stats.pkl'), 'rb') as f:
+                train_stats = pickle.load(f)
         except: 
             print("Can't find training stats...")
-            stats = None
+            pretrain_stats, train_stats = None, None
         print("*"*50)
     except Exception as e:
         print(e)
@@ -114,13 +116,13 @@ def load_from_pretrained():
             # save to dialogpt
             tokenizer.save_pretrained(tokenizer_path)
             model.save_pretrained(model_path)
-        stats = None
+        pretrain_stats, train_stats = None, None
     tokenizer.add_special_tokens({'additional_special_tokens': ['<|start|>', '<|p1|>', '<|p2|>', '<|act|>']})
     model.resize_token_embeddings(len(tokenizer))
-    return model.to(device), tokenizer, stats
+    return model.to(device), tokenizer, pretrain_stats, train_stats
 
 
-model, tokenizer, stats = load_from_pretrained()
+model, tokenizer, pretrain_stats, train_stats = load_from_pretrained()
 p1_tok, p2_tok, start_tok = tokenizer.encode('<|p1|>')[0], tokenizer.encode('<|p2|>')[0], tokenizer.encode('<|start|>')[0]
 
 # new, action token

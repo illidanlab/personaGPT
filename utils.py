@@ -63,7 +63,7 @@ def plot_losses(stats, title='loss'):
     loss = [stats[i][title] for i in x]
     plt.plot(x, loss, label= title)
     plt.legend()
-    plt.title("Training %s" %title)
+    plt.title("%s" %title)
     plt.tight_layout()
-    plt.savefig(os.path.join(opts.plot_path,'training_%s.png'%title))
+    plt.savefig(os.path.join(opts.plot_path,'%s.png'%title))
     plt.close()

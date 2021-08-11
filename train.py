@@ -10,18 +10,18 @@ import numpy as np
 from torch.utils.data import DataLoader, Dataset, RandomSampler, SequentialSampler
 from transformers import AdamW, get_linear_schedule_with_warmup
 
-from load_configs import model, tokenizer, stats, opts, device, create_dir, p1_tok, p2_tok, start_tok
+from load_configs import model, tokenizer, pretrain_stats, train_stats, opts, device, create_dir, p1_tok, p2_tok, start_tok, act_tok
 from utils import *
 
 ## model saving ##
-def checkpoint(model, tokenizer, optimizer, scheduler, stats):
+def checkpoint(model, tokenizer, optimizer, scheduler, stats, title=""):
     create_dir(opts.output_dir)
     model.save_pretrained(opts.output_dir)
     tokenizer.save_pretrained(opts.output_dir)
-    torch.save(opts, os.path.join(opts.output_dir, "training_opts.bin"))
-    torch.save(optimizer.state_dict(), os.path.join(opts.output_dir, 'optimizer.pt'))
-    torch.save(scheduler.state_dict(), os.path.join(opts.output_dir, 'scheduler.pt'))
-    with open(os.path.join(opts.output_dir, 'stats.pkl'), 'wb') as f: pickle.dump(stats,f)
+    torch.save(opts, os.path.join(opts.output_dir, title+"training_opts.bin"))
+    torch.save(optimizer.state_dict(), os.path.join(opts.output_dir, title+'optimizer.pt'))
+    torch.save(scheduler.state_dict(), os.path.join(opts.output_dir, title+'scheduler.pt'))
+    with open(os.path.join(opts.output_dir, title+'stats.pkl'), 'wb') as f: pickle.dump(stats,f)
     
 ## Training Pipeline ##
 def fit_on_batch(batch):
@@ -56,11 +56,11 @@ def pretrain(data, stats=None):
     scheduler = get_linear_schedule_with_warmup(optimizer, num_warmup_steps=opts.warmup_steps, 
                                                 num_training_steps=t_total)
     # loading optimizer settings
-    if (opts.model_name_or_path and os.path.isfile(os.path.join(opts.model_name_or_path, "optimizer.pt"))
+    if (opts.model_name_or_path and os.path.isfile(os.path.join(opts.model_name_or_path, "pretrain_optimizer.pt"))
                                 and os.path.isfile(os.path.join(opts.model_name_or_path, "scheduler.pt")) ):
         # load optimizer and scheduler states
-        optimizer.load_state_dict(torch.load(os.path.join(opts.model_name_or_path, "optimizer.pt")))
-        scheduler.load_state_dict(torch.load(os.path.join(opts.model_name_or_path, "scheduler.pt")))
+        optimizer.load_state_dict(torch.load(os.path.join(opts.model_name_or_path, "pretrain_optimizer.pt")))
+        scheduler.load_state_dict(torch.load(os.path.join(opts.model_name_or_path, "pretrain_scheduler.pt")))
     # track stats
     if stats is not None:
         global_step = max(stats.keys())
@@ -99,21 +99,21 @@ def pretrain(data, stats=None):
                 
                 # reporting 
                 if global_step % opts.logging_steps ==0:
-                    stats[global_step] = {'loss': (tr_loss - logging_loss) / opts.logging_steps, 
-                                          'lr': scheduler.get_last_lr()[-1]}
+                    stats[global_step] = {'pretrain_loss': (tr_loss - logging_loss) / opts.logging_steps, 
+                                          'pretrain_lr': scheduler.get_last_lr()[-1]}
                     logging_loss = tr_loss
                     
                     elapsed_time = time.strftime("%M:%S", time.gmtime(time.time() - start_time))
                     print('Epoch: %d | Iter: [%d/%d] | loss: %.3f | lr: %s | time: %s' %( 
-                    epoch, global_step, t_total, stats[global_step]['loss'],                             
-                            str(stats[global_step]['lr']), elapsed_time))
+                    epoch, global_step, t_total, stats[global_step]['pretrain_loss'],                             
+                            str(stats[global_step]['pretrain_lr']), elapsed_time))
                     start_time = time.time()
                     
                 if global_step % opts.save_steps==0:
                     print("Saving stuff ... ")
-                    checkpoint(model, tokenizer, optimizer, scheduler, stats)
-                    plot_losses(stats, title='pretraining_loss' )
-                    plot_losses(stats, title='lr')
+                    checkpoint(model, tokenizer, optimizer, scheduler, stats, title="pretrain_")
+                    plot_losses(stats, title='pretrain_loss' )
+                    plot_losses(stats, title='pretrain_lr')
                     print("Done.")
                     
     return stats
@@ -145,11 +145,11 @@ def train_loop(new_data, old_data, stats = None):
     scheduler = get_linear_schedule_with_warmup(optimizer, num_warmup_steps=opts.warmup_steps, 
                                                 num_training_steps=t_total)
     # loading optimizer settings
-    if (opts.active_learning_path and os.path.isfile(os.path.join(opts.active_learning_path, "optimizer.pt"))
-                                and os.path.isfile(os.path.join(opts.active_learning_path, "scheduler.pt")) ):
+    if (opts.model_name_or_path and os.path.isfile(os.path.join(opts.model_name_or_path, "train_optimizer.pt"))
+                                and os.path.isfile(os.path.join(opts.model_name_or_path, "train_scheduler.pt")) ):
         # load optimizer and scheduler states
-        optimizer.load_state_dict(torch.load(os.path.join(opts.active_learning_path, "optimizer.pt")))
-        scheduler.load_state_dict(torch.load(os.path.join(opts.active_learning_path, "scheduler.pt")))
+        optimizer.load_state_dict(torch.load(os.path.join(opts.model_name_or_path, "train_optimizer.pt")))
+        scheduler.load_state_dict(torch.load(os.path.join(opts.model_name_or_path, "train_scheduler.pt")))
     # track stats
     if stats is not None:
         global_step = max(stats.keys())
@@ -168,7 +168,7 @@ def train_loop(new_data, old_data, stats = None):
     model.train()
     data_iter_new = iter(dataloader_new)
     data_iter_old = iter(dataloader_old)
-    for epoch in range(epochs_trained, num_train_epochs):
+    for epoch in range(epochs_trained, opts.num_train_epochs):
         for step in range(len(dataloader_old)): 
             if steps_trained_in_current_epoch > 0:
                 steps_trained_in_current_epoch -= 1
@@ -204,23 +204,23 @@ def train_loop(new_data, old_data, stats = None):
                 
                 # reporting 
                 if global_step % opts.logging_steps ==0:
-                    stats[global_step] = {'new_loss': (tr_loss - logging_loss) / opts.logging_steps, 
-                                          'old_loss': (tr_loss_old - logging_loss_old) / opts.logging_steps,
-                                          'lr': scheduler.get_last_lr()[-1]}
+                    stats[global_step] = {'persona_loss': (tr_loss - logging_loss) / opts.logging_steps, 
+                                          'ctrl_loss': (tr_loss_old - logging_loss_old) / opts.logging_steps,
+                                          'train_lr': scheduler.get_last_lr()[-1]}
                     logging_loss = tr_loss
                     logging_loss_old = tr_loss_old
                     
                     print('Epoch: %d | Iter: [%d/%d] | new_loss: %.3f | old_loss: %.3f | lr: %s ' %( 
-                    epoch, step, len(dataloader_old), stats[global_step]['new_loss'], 
-                            stats[global_step]['old_loss'],
-                            str(stats[global_step]['lr'])) )
+                    epoch, step, len(dataloader_old), stats[global_step]['persona_loss'], 
+                            stats[global_step]['ctrl_loss'],
+                            str(stats[global_step]['train_lr'])) )
                     
                 if global_step % opts.save_steps==0:
                     print("Saving stuff ... ")
-                    checkpoint(model, tokenizer, optimizer, scheduler, stats)
-                    plot_losses(stats, title='personachat_loss' )
+                    checkpoint(model, tokenizer, optimizer, scheduler, stats, title="train_")
+                    plot_losses(stats, title='persona_loss' )
                     plot_losses(stats, title='ctrl_loss' )
-                    plot_losses(stats, title='lr')
+                    plot_losses(stats, title='train_lr')
                     print("Done.")
                             
     return stats
@@ -245,14 +245,14 @@ def evaluate_loop(data):
             ytrue=np.array( filter_turn_indices(to_data(yy[...,1:].contiguous().view(-1)) ) )
             ypred=np.array( filter_turn_indices(to_data( outp[1][..., :-1, :].contiguous().topk(1)[1].view(-1)) ) ) 
             min_len = min(len(ypred), len(ytrue))
-            hits = [set(ypred[i]).intersection(set(ytrue[i])) for i in range(min_len)]#set(ytrue).intersection(set(ypred))
+            hits = [set(ypred[i]).intersection(set(ytrue[i])) for i in range(min_len)]
             prec = [len(hits[i])/len(ypred[i]) for i in range(min_len)]
             rec = [len(hits[i])/len(ytrue[i]) for i in range(min_len)]
             f1 = np.mean([2*(prec[i]*rec[i])/(prec[i] + rec[i]+1e-3) for i in range(min_len)])
             val_f1_score += f1
             val_loss += loss.mean().item()
             total_steps +=1 
-            if total_steps%20 ==0: print(total_steps)
+            #if total_steps%100 ==0: print("... %d out of %d"%(total_steps, len(dataloader)))
             
     val_loss = val_loss / total_steps 
     val_f1_score = val_f1_score / total_steps
@@ -263,15 +263,17 @@ def evaluate_loop(data):
 
 if __name__ == '__main__':        
     with open(opts.raw_data_path, 'rb') as f: train_data = pickle.load(f)
-    pretrain_stats = pretrain(train_data, stats)
+    pretrain_stats = pretrain(train_data, pretrain_stats)
     
     with open(opts.active_data_path, 'rb') as f: active_data = pickle.load(f)
-    train_stats = train_loop(active_data, train_data)
+    train_stats = train_loop(active_data, train_data, train_stats)
 
+    print("="*50)
+    print("Evaluating ... ")
     with open(opts.val_data_path, 'rb') as f: eval_data = pickle.load(f)
     eval_stats = evaluate_loop(eval_data)
-      
-    print("="*15, " Eval Score ", "="*15)
+    print("Done!")
+    print()
     print("Perplexity: %.2f" %eval_stats['perplexity'])
     print("F1 Score: %.2f" % eval_stats['f1'])
-    print("="*45)
+    print("="*50)
