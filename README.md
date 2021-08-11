@@ -13,13 +13,13 @@ Also called [persona modeling](https://arxiv.org/abs/1902.00098), personalized d
 
 * Example
 
-| Persona Facts |
-|---|
-| 1. i am 64 years old but feel quite young. |
-| 2. i try to eat healthy but limit mcdonalds to once a week. |
-| 3. i regret working as a doctor for the last 20 years. |
-| 4. my secret hobby is making self-help youtube videos. |
-| 5. i've been to spain many times and wish i could go again. |
+| | Persona Facts |
+|---|---|
+| 1 | i am 64 years old but feel quite young. |
+| 2 | i try to eat healthy but limit mcdonalds to once a week. |
+| 3 | i regret working as a doctor for the last 20 years. |
+| 4 | my secret hobby is making self-help youtube videos. |
+| 5 | i've been to spain many times and wish i could go again. |
 
 | Role | Response|
 |---|---|
@@ -43,13 +43,13 @@ Also called [persona modeling](https://arxiv.org/abs/1902.00098), personalized d
 
 Another feature of PersonaGPT is generating responses that directs conversations toward certain topics of interests. The following is a self-play episode between 2 PersonaGPT agents, one interviews the other. 
 
-| Bot 2's Persona Facts |
-|---|
-| 1. i am a quiet engineer. |
-| 2. i'm single and am looking for love. |
-| 3. sadly, i don't have any relatable hobbies. |
-| 4. luckily, however, i am tall and athletic. |
-| 5. on friday nights, i watch re-runs of the simpsons alone. |
+| | Bot 2's Persona Facts |
+|---|---|
+| 1 | i am a quiet engineer. |
+| 2 | i'm single and am looking for love. |
+| 3 | sadly, i don't have any relatable hobbies. |
+| 4 | luckily, however, i am tall and athletic. |
+| 5 | on friday nights, i watch re-runs of the simpsons alone. |
 
 | Role | Action | Response |
 |---|---|---|
