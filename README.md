@@ -121,7 +121,7 @@ Explanation: currently there are 2 training loops, `pretrain()` and `train_loop(
 ## Evaluation 
 
 After training, an evaluation loop will run and print out a set of scores saved under `eval_stats`. 
-Below is a comparison of PersonaGPT vs. other baselines on the Persona-Chat dataset using automatic evaluation metrics. After training, your results should look something like this: 
+Below is a comparison of PersonaGPT vs. other baselines on the Persona-Chat dataset using automatic evaluation metrics. Your results should look something like: 
 
 | Model | Perplexity | F1 Score | 
 |---|---|---|
