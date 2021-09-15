@@ -8,7 +8,8 @@ Created on Mon Oct 12 14:10:21 2020
 import torch, os, pickle, time
 import numpy as np
 from torch.utils.data import DataLoader, Dataset, RandomSampler, SequentialSampler
-from transformers import AdamW, get_linear_schedule_with_warmup
+from torch.optim import AdamW
+from transformers import get_linear_schedule_with_warmup
 
 from load_configs import model, tokenizer, pretrain_stats, train_stats, opts, device, create_dir, p1_tok, p2_tok, start_tok, act_tok
 from utils import *
@@ -31,8 +32,9 @@ def fit_on_batch(batch):
     except:
         xx, yy = to_var(xx), to_var(yy)
     ## forward on new data batch
-    _, past = model(xx); del _
-    outp = model(yy, past=past, labels=yy)
+    _outp = model(xx)
+    past = _outp.past_key_values
+    outp = model(yy, past_key_values=past, labels=yy)
     
     # backward
     loss = outp[0]; del outp

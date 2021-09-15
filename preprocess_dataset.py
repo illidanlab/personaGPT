@@ -99,7 +99,7 @@ def convert_to_XY(old_data):
         convo = old_data[i]['inp'] + old_data[i]['labels']
         dialog_hx = list(split_by_index(convo,tokenizer.eos_token_id))
         #if len(dialog_hx) < 30:
-        dialog_hx = dialog_hx[:20] # limit by max len of convo
+        dialog_hx = [line + [tokenizer.eos_token_id] for line in dialog_hx[:20]] # limit by max len of convo
         p1_ctx = tokenizer.encode(''.join(['<|p1|>'] + p1 + ['<|sep|>'] + ['<|start|>']))
         p2_ctx = tokenizer.encode(''.join(['<|p2|>'] + p2 + ['<|sep|>'] + ['<|start|>']))
         for t in range(len(dialog_hx)):

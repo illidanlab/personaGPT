@@ -87,7 +87,7 @@ Below are instructions to reconstruct the PersonaGPT from "scratch" (i.e., from 
 ### Requirements: ###
 * Python 3.6+
 * Pytorch (GPU preferred)
-* [transformers](https://github.com/huggingface/transformers) package
+* [transformers](https://github.com/huggingface/transformers)
 * [dotenv](https://pypi.org/project/python-dotenv/)
 * [tqdm](https://tqdm.github.io/)
 * (optional) [apex](https://www.github.com/nvidia/apex) for fp16 training
