@@ -5,7 +5,7 @@
 
 PersonaGPT is an open-domain conversational agent cpable of decoding _personalized_ and _controlled_ responses based on user input. It is built on the pretrained [DialoGPT-medium](https://github.com/microsoft/DialoGPT) model, following the [GPT-2](https://github.com/openai/gpt-2) architecture. 
 PersonaGPT is fine-tuned on the [Persona-Chat](https://arxiv.org/pdf/1801.07243) dataset, with added special tokens to better distinguish between conversational history and personality traits for dyadic conversations. 
-Furthermore, some active leanring was used to train the model to do _controlled decoding_ based on certain "action codes" (e.g., talk about work, ask about music interests). 
+Furthermore, some active learning was used to train the model to do _controlled decoding_ based on certain "action codes" (e.g., talk about work, ask about music interests). 
 
 ---
 ## Personalized Dialog Generation 
