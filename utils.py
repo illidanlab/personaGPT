@@ -43,7 +43,6 @@ def split_by_index(seq, sep):
             result = []
             
 def filter_turn_indices(x):
-    '''depreciated: originally used for preparing persona_dict. '''
     filtered = [[t[1] for t in list(g)] for k,g in groupby(list(enumerate(x)), lambda x: x[1]==tokenizer.eos_token_id) if not k]
     return filtered
 

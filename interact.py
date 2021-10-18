@@ -78,7 +78,7 @@ def interact(choice, personas, length=8, top_k=10, top_p=.92, max_length=1000):
     return dialog_hx
 
 if __name__=="__main__":
-    parser = argparse.ArgumentParser(description='Process some integers.')
+    parser = argparse.ArgumentParser(description='Conversational parameters for interacting with personaGPT.')
     parser.add_argument('-M', '--mode', type=int, 
                         dest='mode', default=1,
                         help='''mode (0 or 1) of interaction: 
