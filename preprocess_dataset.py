@@ -9,6 +9,7 @@ from tqdm import tqdm
 import torch, os, pickle
 import torch.nn as nn, torch.nn.functional as F
 import numpy as np, random
+import pandas as pd
 
 from load_configs import model, tokenizer, opts, device, data_path, save_path
 from utils import *
@@ -114,6 +115,13 @@ def convert_to_XY(old_data):
                 x = p2_ctx + flatten(x)
             data.append((x,y))
     return data
+
+def build_active_data():
+    df = pd.read_csv(os.path.join(data_path, 'active_learning_data.csv'))
+    X, y = df['context'].tolist(), df['response'].tolist()
+    X, y = [tokenizer.encode(x) for x in X], [tokenizer.encode(yy) for yy in y]
+    data = {'X':X, 'y':y}
+    return data
     
     
 if __name__ == '__main__':        
@@ -121,6 +129,7 @@ if __name__ == '__main__':
     train_data = convert_to_XY(train_data)
     val_data = preprocess_convai(os.path.join(data_path, 'valid_both_original_no_cands.txt'))
     val_data = convert_to_XY(val_data)
+    active_data = build_active_data()
     with open(opts.raw_data_path, 'wb') as f: pickle.dump(train_data, f)
     with open(opts.val_data_path, 'wb') as f: pickle.dump(val_data, f)
-    
+    with open(opts.active_data_path, 'wb') as f: pickle.dump(active_data, f)
