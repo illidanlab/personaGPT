@@ -121,6 +121,29 @@ Currently there are 2 training loops, `pretrain()` and `train_loop()`. `pretrain
 * `ctrl_loss`: tracks the training loss on actively learned action codes during `train_loop()`. 
 
 ---
+## Active Learning 
+
+Currently, there are 11 possible turn-level goals that can be used for controlled response generation. 
+
+| Turn-level Goals | 
+| --- |
+| 1. ask about family. |
+| 2. ask about pets. |
+| 3. talk about work. | 
+| 4. talk about traveling. |
+| 5. ask about age and gender. |
+| 6. talk about hobbies. |
+| 7. talk about music. |
+| 8. talk about food. |
+| 9. talk about movies. |
+| 10. talk about politics. |
+| 11. ask about marital status. |
+
+These turn-level goals are handcrafted based on the [personachat dataset](https://arxiv.org/abs/1902.00098) to cover most of the conversational directions at the turn-level. 
+
+To actively learn **new turn-level goals**, use the [convogym repo](https://github.com/af1tang/convogym).
+
+---
 
 ## Evaluation 
 
