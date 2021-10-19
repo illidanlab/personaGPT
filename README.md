@@ -153,6 +153,13 @@ Below is a comparison of PersonaGPT vs. other baselines on the Persona-Chat data
 | **PersonaGPT** | **10.2** | **43.4** | 
 
 --- 
+
+## Cite Us
+
+Coming soon.
+
+--- 
+
 ## References ##
 
 1. Radford, Alec, et al. "Language models are unsupervised multitask learners." OpenAI Blog 1.8 (2019): 9.
