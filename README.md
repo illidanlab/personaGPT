@@ -11,7 +11,7 @@ Furthermore, some active learning was used to train the model to do _controlled 
 ## Personalized Dialog Generation 
 Also called [persona modeling](https://arxiv.org/abs/1902.00098), personalized dialog generation takes as input a set of personality facts and dialog history to generate responses that are (ideally) sensible and diverse, yet consistent with past responses and the given persona profile. 
 
-* Example
+###### Example
 
 | | Persona Facts |
 |---|---|
