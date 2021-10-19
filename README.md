@@ -125,7 +125,7 @@ Currently there are 2 training loops, `pretrain()` and `train_loop()`. `pretrain
 
 Currently, there are 11 possible turn-level goals that can be used for controlled response generation. 
 
-| Turn-level Goals | 
+| | Turn-level Goals | |
 | --- | --- | --- |
 | 1. ask about family. | 4. talk about traveling. | 7. talk about music. |
 | 2. ask about pets. | 5. ask about age and gender. | 8. talk about food. |
