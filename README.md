@@ -156,7 +156,7 @@ Below is a comparison of PersonaGPT vs. other baselines on the Persona-Chat data
 
 ## Cite Us
 
-Our (full paper)[https://arxiv.org/abs/2110.12949v1] is now up on arXiv.
+Our [full paper](https://arxiv.org/abs/2110.12949v1) is now up on arXiv.
 
 ```
 @misc{tang2021persona,
