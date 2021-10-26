@@ -156,7 +156,18 @@ Below is a comparison of PersonaGPT vs. other baselines on the Persona-Chat data
 
 ## Cite Us
 
-Coming soon.
+Our (full paper)[https://arxiv.org/abs/2110.12949v1] is now up on arXiv.
+
+```
+@misc{tang2021persona,
+      title={Persona Authentication through Generative Dialogue}, 
+      author={Fengyi Tang and Lifan Zeng and Fei Wang and Jiayu Zhou},
+      year={2021},
+      eprint={2110.12949},
+      archivePrefix={arXiv},
+      primaryClass={cs.CL}
+}
+```
 
 --- 
 
